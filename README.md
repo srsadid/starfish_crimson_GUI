@@ -19,7 +19,14 @@ This repository decouples the visual editor and data visualization components fr
 
 ## Requirements
 
-The extension will automatically attempt to install the following dependencies into Slicer's Python environment upon launch if they are missing:
+**1. SlicerVMTK (Required)**
+You **must** manually install the SlicerVMTK extension before using this module:
+- Open Slicer > View > Extension Manager
+- Search for "SlicerVMTK" and click Install.
+- Restart Slicer.
+
+**2. Python Packages (Automatic)**
+The extension will automatically attempt to install the following Python dependencies upon launch if they are missing:
 - `h5py`
 - `matplotlib`
 

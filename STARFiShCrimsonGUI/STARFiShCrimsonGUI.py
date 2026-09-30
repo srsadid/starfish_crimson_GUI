@@ -80,7 +80,7 @@ class STARFiShCrimsonGUI(ScriptedLoadableModule):
         ScriptedLoadableModule.__init__(self, parent)
         self.parent.title        = "Model Builder Demo"
         self.parent.categories   = ["STARFiSh-CRIMSON"]
-        self.parent.dependencies = []
+        self.parent.dependencies = ["SlicerVMTK"]
         self.parent.contributors = ["Sadman Sadid, University of Michigan <sadid@umich.edu>"]
         self.parent.helpText     = (
             "STARFiSh-CRIMSON vascular network canvas — running natively inside 3D Slicer."
