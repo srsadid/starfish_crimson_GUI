@@ -87,23 +87,7 @@ QPushButton[sfRole="secondary"] {
 }
 QPushButton[sfRole="secondary"]:hover { background: rgba(50,90,150,0.55); }
 
-QComboBox, QSpinBox, QDoubleSpinBox {
-    background: rgba(0,0,0,0.18);
-    border: 1px solid rgba(255,255,255,0.14);
-    border-radius: 3px;
-    color: #d4e0ec;
-    font-size: 12px;
-    min-height: 22px;
-    max-height: 26px;
-    padding: 1px 6px;
-}
-QComboBox::drop-down { border: none; width: 18px; }
-QComboBox QAbstractItemView {
-    background: #2e3440;
-    border: 1px solid rgba(255,255,255,0.15);
-    color: #d4e0ec;
-    selection-background-color: rgba(45,108,200,0.6);
-}
+
 
 QLineEdit {
     background: rgba(0,0,0,0.2);
