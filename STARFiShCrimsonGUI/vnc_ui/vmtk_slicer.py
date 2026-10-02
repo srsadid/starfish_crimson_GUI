@@ -15,10 +15,12 @@ class STARFiShCenterlinePanel(QtWidgets.QWidget):
         self.branchNodes = []
         self.branchReportRows = []
         
-        # Get the ExtractCenterline widget without switching Slicer's active module.
-        # widgetRepresentation() instantiates the widget on demand without needing selectModule().
         # We then immediately restore the active module to STARFiShCrimsonGUI.
-        self.vmtk_widget = slicer.modules.extractcenterline.widgetRepresentation()
+        try:
+            self.vmtk_widget = slicer.modules.extractcenterline.widgetRepresentation()
+        except AttributeError:
+            self.vmtk_widget = None
+            
         try:
             slicer.util.selectModule("STARFiShCrimsonGUI")
         except Exception:
@@ -36,6 +38,15 @@ class STARFiShCenterlinePanel(QtWidgets.QWidget):
         root = qt.QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
+
+        if self.vmtk_widget is None:
+            err = qt.QLabel("<b>SlicerVMTK Extension is missing or failed to load.</b><br><br>Please install it from the Extension Manager and ensure it loads without errors to use this feature.")
+            err.setWordWrap(True)
+            err.setAlignment(QtCore.Qt.AlignCenter)
+            err.setStyleSheet("color: red; padding: 20px; font-size: 14px;")
+            root.addWidget(err)
+            root.addStretch()
+            return
 
         # ── Header ──────────────────────────────────────────────────────
         header = qt.QFrame()
@@ -236,6 +247,9 @@ class STARFiShCenterlinePanel(QtWidgets.QWidget):
 
 
     def _setup_vmtk_outputs(self):
+        if self.vmtk_widget is None:
+            return
+            
         # We explicitly set VMTK outputs to NOT generate models or text properties
         # by accessing the node selectors in the VMTK widget.
         selectors_to_disable = [
