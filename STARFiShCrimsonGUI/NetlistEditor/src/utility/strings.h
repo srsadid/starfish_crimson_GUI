@@ -3,7 +3,7 @@
 
 #include <map>
 #include <utility>
-
+#include <cstddef>
 namespace predefinedStrings
 {
 	// Predefined strings
