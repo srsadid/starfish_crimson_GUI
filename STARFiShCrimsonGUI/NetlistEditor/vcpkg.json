@@ -6,7 +6,6 @@
       "name": "qtbase",
       "default-features": false,
       "features": [
-        "core",
         "gui",
         "widgets",
         "concurrent",
