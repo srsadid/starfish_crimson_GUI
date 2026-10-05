@@ -296,6 +296,8 @@ jobs:
 
           brew install \
             cmake \
+            qtbase \
+            qtsvg \
             qwt \
             boost
 
