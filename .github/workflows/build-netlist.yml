@@ -1,87 +1,662 @@
-name: Build NetlistEditor (Windows, Mac, Linux)
+name: Build CRIMSON NetlistEditor
 
 on:
   push:
-    branches: [ "main" ] # Triggers the build when you push
-  workflow_dispatch:     # Allows you to trigger it manually from the website
+    branches:
+      - main
+    paths:
+      - "STARFiShCrimsonGUI/NetlistEditor/**"
+      - ".github/workflows/build-netlist.yml"
+
+  workflow_dispatch:
 
 jobs:
-  build:
-    name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-20.04
-            name: linux
-          - os: macos-latest
-            name: macos
-          - os: windows-latest
-            name: windows
+
+  # ============================================================
+  # WINDOWS x64
+  # ============================================================
+
+  windows:
+    name: Windows x64
+    runs-on: windows-2022
+
+    env:
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\.vcpkg-cache
 
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
 
-    - name: Install Qt 5
-      uses: jurplel/install-qt-action@v4
-      with:
-        version: '5.15.2'
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    # ─────────────────────────────────────────────────────────────
-    # LINUX BUILD
-    # ─────────────────────────────────────────────────────────────
-    - name: Install Linux Dependencies (Ubuntu)
-      if: matrix.os == 'ubuntu-20.04'
-      run: |
-        sudo apt update
-        sudo apt install -y build-essential cmake pkg-config libqwt-qt5-dev libqt5svg5-dev
 
-    - name: Compile Linux
-      if: matrix.os == 'ubuntu-20.04'
-      run: |
-        cd STARFiShCrimsonGUI/NetlistEditor
-        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-        cmake --build build -j
-        
-        # Download linuxdeployqt to bundle the libraries
-        wget -c -nv "https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage"
-        chmod a+x linuxdeployqt-continuous-x86_64.AppImage
-        ./linuxdeployqt-continuous-x86_64.AppImage build/CRIMSONBCT -appimage
+      # ----------------------------------------------------------
+      # vcpkg cache
+      #
+      # The first build may still take quite a while because Qt
+      # must be built. Future runs can reuse the binary cache.
+      # ----------------------------------------------------------
 
-    # ─────────────────────────────────────────────────────────────
-    # MAC BUILD
-    # ─────────────────────────────────────────────────────────────
-    - name: Compile Mac
-      if: matrix.os == 'macos-latest'
-      run: |
-        brew install qwt
-        cd STARFiShCrimsonGUI/NetlistEditor
-        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-        cmake --build build -j
-        
-        macdeployqt build/CRIMSONBCT.app
+      - name: Create vcpkg cache directory
+        shell: pwsh
+        run: |
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "$env:VCPKG_DEFAULT_BINARY_CACHE"
 
-    # ─────────────────────────────────────────────────────────────
-    # WINDOWS BUILD
-    # ─────────────────────────────────────────────────────────────
-    - name: Compile Windows
-      if: matrix.os == 'windows-latest'
-      run: |
-        cd STARFiShCrimsonGUI\NetlistEditor
-        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-        cmake --build build -j
-        
-        cd build
-        windeployqt CRIMSONBCT.exe
 
-    # ─────────────────────────────────────────────────────────────
-    # UPLOAD THE FINISHED BINARY TO GITHUB
-    # ─────────────────────────────────────────────────────────────
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: CRIMSONBCT-${{ matrix.name }}
-        path: |
-          STARFiShCrimsonGUI/NetlistEditor/build/CRIMSONBCT*
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: .vcpkg-cache
+          key: vcpkg-windows-x64-${{ hashFiles(
+            'STARFiShCrimsonGUI/NetlistEditor/CMakeLists.txt',
+            'STARFiShCrimsonGUI/NetlistEditor/src/CMakeLists.txt'
+            ) }}
+          restore-keys: |
+            vcpkg-windows-x64-
+
+
+      # ----------------------------------------------------------
+      # Dependencies
+      #
+      # qwt -> Qt6
+      # boost-headers -> enough for this source tree
+      #
+      # qtbase[windeployqt] is included because recent vcpkg
+      # versions no longer necessarily install windeployqt with
+      # plain qtbase.
+      # ----------------------------------------------------------
+
+      - name: Install Windows dependencies
+        shell: pwsh
+        run: |
+
+          Write-Host "vcpkg root:"
+          Write-Host $env:VCPKG_INSTALLATION_ROOT
+
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install `
+            qwt:x64-windows `
+            boost-headers:x64-windows `
+            "qtbase[windeployqt]:x64-windows"
+
+
+      # ----------------------------------------------------------
+      # Configure
+      # ----------------------------------------------------------
+
+      - name: Configure Windows build
+        shell: pwsh
+        run: |
+
+          cmake `
+            -S "$env:GITHUB_WORKSPACE\STARFiShCrimsonGUI\NetlistEditor" `
+            -B "$env:GITHUB_WORKSPACE\STARFiShCrimsonGUI\NetlistEditor\build-ci" `
+            -G "Visual Studio 17 2022" `
+            -A x64 `
+            -DNETLISTEDITOR_USE_QT6=ON `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT\scripts\buildsystems\vcpkg.cmake"
+
+
+      # ----------------------------------------------------------
+      # Build
+      # ----------------------------------------------------------
+
+      - name: Build Windows
+        shell: pwsh
+        run: |
+
+          cmake `
+            --build "$env:GITHUB_WORKSPACE\STARFiShCrimsonGUI\NetlistEditor\build-ci" `
+            --config Release `
+            --parallel
+
+
+      # ----------------------------------------------------------
+      # Locate executable
+      # ----------------------------------------------------------
+
+      - name: Locate Windows executable
+        shell: pwsh
+        run: |
+
+          $exe = Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\STARFiShCrimsonGUI\NetlistEditor\build-ci" `
+            -Filter "CRIMSONBCT.exe" `
+            -Recurse |
+            Select-Object -First 1
+
+          if (-not $exe) {
+            throw "CRIMSONBCT.exe was not produced."
+          }
+
+          Write-Host "Found:"
+          Write-Host $exe.FullName
+
+
+      # ----------------------------------------------------------
+      # Build ready-to-run deployment folder
+      # ----------------------------------------------------------
+
+      - name: Stage Windows deployment
+        shell: pwsh
+        run: |
+
+          $package = `
+            "$env:GITHUB_WORKSPACE\dist\STARFiShCrimsonGUI\bin\windows"
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path $package
+
+          $exe = Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\STARFiShCrimsonGUI\NetlistEditor\build-ci" `
+            -Filter "CRIMSONBCT.exe" `
+            -Recurse |
+            Select-Object -First 1
+
+          Copy-Item `
+            $exe.FullName `
+            "$package\CRIMSONBCT.exe"
+
+
+      # ----------------------------------------------------------
+      # Qt deployment
+      # ----------------------------------------------------------
+
+      - name: Deploy Qt on Windows
+        shell: pwsh
+        run: |
+
+          $package = `
+            "$env:GITHUB_WORKSPACE\dist\STARFiShCrimsonGUI\bin\windows"
+
+          $windeployqt = Get-ChildItem `
+            "$env:VCPKG_INSTALLATION_ROOT\installed" `
+            -Filter "windeployqt.exe" `
+            -Recurse `
+            -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+
+          if (-not $windeployqt) {
+            throw "windeployqt.exe was not found."
+          }
+
+          Write-Host "Using:"
+          Write-Host $windeployqt.FullName
+
+          & $windeployqt.FullName `
+            --release `
+            --compiler-runtime `
+            --no-translations `
+            "$package\CRIMSONBCT.exe"
+
+
+      # ----------------------------------------------------------
+      # Qwt is not deployed by windeployqt automatically.
+      # ----------------------------------------------------------
+
+      - name: Copy Qwt DLL
+        shell: pwsh
+        run: |
+
+          $package = `
+            "$env:GITHUB_WORKSPACE\dist\STARFiShCrimsonGUI\bin\windows"
+
+          $qwt = Get-ChildItem `
+            "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin" `
+            -Filter "*qwt*.dll" `
+            -ErrorAction SilentlyContinue
+
+          if (-not $qwt) {
+            throw "Qwt runtime DLL was not found."
+          }
+
+          foreach ($dll in $qwt) {
+
+            Write-Host "Copying $($dll.Name)"
+
+            Copy-Item `
+              $dll.FullName `
+              "$package\" `
+              -Force
+          }
+
+
+      - name: Show Windows deployment
+        shell: pwsh
+        run: |
+          Get-ChildItem `
+            "$env:GITHUB_WORKSPACE\dist\STARFiShCrimsonGUI\bin\windows" `
+            -Recurse
+
+
+      # Zip it ourselves rather than uploading loose files.
+      - name: Create Windows ZIP
+        shell: pwsh
+        run: |
+
+          Compress-Archive `
+            -Path "$env:GITHUB_WORKSPACE\dist\STARFiShCrimsonGUI" `
+            -DestinationPath "$env:GITHUB_WORKSPACE\CRIMSONBCT-Windows-x64.zip"
+
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CRIMSONBCT-Windows-x64
+          path: CRIMSONBCT-Windows-x64.zip
+          if-no-files-found: error
+          retention-days: 14
+
+
+
+  # ============================================================
+  # macOS ARM64 — Apple Silicon
+  #
+  # This intentionally targets M-series Macs, not Intel.
+  # ============================================================
+
+  macos-arm64:
+    name: macOS ARM64
+    runs-on: macos-15
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      # ----------------------------------------------------------
+      # Make sure GitHub really gave us an ARM machine.
+      # ----------------------------------------------------------
+
+      - name: Verify ARM64 runner
+        shell: bash
+        run: |
+
+          echo "Architecture:"
+          uname -m
+
+          if [ "$(uname -m)" != "arm64" ]; then
+            echo "Expected an ARM64 GitHub runner."
+            exit 1
+          fi
+
+
+      # ----------------------------------------------------------
+      # Homebrew uses pre-built Apple Silicon bottles here, so
+      # this should be much faster than compiling Qt yourself.
+      # ----------------------------------------------------------
+
+      - name: Install macOS dependencies
+        shell: bash
+        run: |
+
+          brew install \
+            cmake \
+            qt \
+            qwt \
+            boost
+
+
+      - name: Show macOS dependency paths
+        shell: bash
+        run: |
+
+          echo "Homebrew: $(brew --prefix)"
+          echo "Qt:       $(brew --prefix qt)"
+          echo "Qwt:      $(brew --prefix qwt)"
+          echo "Boost:    $(brew --prefix boost)"
+
+
+      # ----------------------------------------------------------
+      # Configure Qt6 build
+      # ----------------------------------------------------------
+
+      - name: Configure macOS ARM64
+        shell: bash
+        run: |
+
+          QT_ROOT="$(brew --prefix qt)"
+          QWT_ROOT="$(brew --prefix qwt)"
+          BOOST_ROOT="$(brew --prefix boost)"
+
+          cmake \
+            -S "$GITHUB_WORKSPACE/STARFiShCrimsonGUI/NetlistEditor" \
+            -B "$GITHUB_WORKSPACE/STARFiShCrimsonGUI/NetlistEditor/build-ci" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DNETLISTEDITOR_USE_QT6=ON \
+            -DINCLUDE_REQUIRED_LIBRARIES_INTO_BUNDLE=OFF \
+            -DQwt_ROOT="$QWT_ROOT" \
+            -DBOOST_ROOT="$BOOST_ROOT" \
+            -DCMAKE_PREFIX_PATH="$QT_ROOT;$QWT_ROOT"
+
+
+      # ----------------------------------------------------------
+      # Build
+      #
+      # IMPORTANT:
+      # Your CMake currently does NOT use MACOSX_BUNDLE, so this
+      # produces a normal executable, not an .app.
+      # ----------------------------------------------------------
+
+      - name: Build macOS ARM64
+        shell: bash
+        run: |
+
+          cmake \
+            --build "$GITHUB_WORKSPACE/STARFiShCrimsonGUI/NetlistEditor/build-ci" \
+            --parallel
+
+
+      - name: Find macOS executable
+        shell: bash
+        run: |
+
+          find \
+            "$GITHUB_WORKSPACE/STARFiShCrimsonGUI/NetlistEditor/build-ci" \
+            -type f \
+            -name "CRIMSON Boundary Condition Toolbox" \
+            -print
+
+
+      # ----------------------------------------------------------
+      # Construct the .app structure expected by your Slicer code:
+      #
+      # CRIMSON Boundary Condition Toolbox.app/
+      #   Contents/
+      #     MacOS/
+      #       CRIMSONBCT
+      #
+      # ----------------------------------------------------------
+
+      - name: Create macOS application bundle
+        shell: bash
+        run: |
+
+          SOURCE_BINARY="$GITHUB_WORKSPACE/STARFiShCrimsonGUI/NetlistEditor/build-ci/bin/CRIMSON Boundary Condition Toolbox"
+
+          APP_ROOT="$GITHUB_WORKSPACE/dist/STARFiShCrimsonGUI/bin/macos/CRIMSON Boundary Condition Toolbox.app"
+
+          mkdir -p \
+            "$APP_ROOT/Contents/MacOS" \
+            "$APP_ROOT/Contents/Resources" \
+            "$APP_ROOT/Contents/Frameworks"
+
+          if [ ! -f "$SOURCE_BINARY" ]; then
+            echo "Expected executable was not found:"
+            echo "$SOURCE_BINARY"
+            exit 1
+          fi
+
+          cp \
+            "$SOURCE_BINARY" \
+            "$APP_ROOT/Contents/MacOS/CRIMSONBCT"
+
+          chmod +x \
+            "$APP_ROOT/Contents/MacOS/CRIMSONBCT"
+
+
+          cat > "$APP_ROOT/Contents/Info.plist" <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+            "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleName</key>
+              <string>CRIMSON Boundary Condition Toolbox</string>
+
+              <key>CFBundleDisplayName</key>
+              <string>CRIMSON Boundary Condition Toolbox</string>
+
+              <key>CFBundleExecutable</key>
+              <string>CRIMSONBCT</string>
+
+              <key>CFBundleIdentifier</key>
+              <string>org.starfish.crimsonbct</string>
+
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+
+              <key>CFBundleVersion</key>
+              <string>1.0</string>
+
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+
+              <key>LSMinimumSystemVersion</key>
+              <string>12.0</string>
+          </dict>
+          </plist>
+          EOF
+
+
+      # ----------------------------------------------------------
+      # Copy Qwt into the app and rewrite its load path.
+      # ----------------------------------------------------------
+
+      - name: Bundle Qwt on macOS
+        shell: bash
+        run: |
+
+          APP_ROOT="$GITHUB_WORKSPACE/dist/STARFiShCrimsonGUI/bin/macos/CRIMSON Boundary Condition Toolbox.app"
+
+          APP_BINARY="$APP_ROOT/Contents/MacOS/CRIMSONBCT"
+
+          QWT_DEP="$(otool -L "$APP_BINARY" | awk '/libqwt/{print $1; exit}')"
+
+          echo "Qwt dependency:"
+          echo "$QWT_DEP"
+
+          if [ -z "$QWT_DEP" ]; then
+            echo "Could not determine Qwt dependency."
+            exit 1
+          fi
+
+          QWT_NAME="$(basename "$QWT_DEP")"
+
+          cp -L \
+            "$QWT_DEP" \
+            "$APP_ROOT/Contents/Frameworks/$QWT_NAME"
+
+          install_name_tool \
+            -change "$QWT_DEP" \
+            "@executable_path/../Frameworks/$QWT_NAME" \
+            "$APP_BINARY"
+
+
+      # ----------------------------------------------------------
+      # Bundle Qt frameworks and platform plugins.
+      # ----------------------------------------------------------
+
+      - name: Deploy Qt frameworks on macOS
+        shell: bash
+        run: |
+
+          APP_ROOT="$GITHUB_WORKSPACE/dist/STARFiShCrimsonGUI/bin/macos/CRIMSON Boundary Condition Toolbox.app"
+
+          MACDEPLOYQT="$(brew --prefix qt)/bin/macdeployqt"
+
+          "$MACDEPLOYQT" \
+            "$APP_ROOT" \
+            -always-overwrite
+
+
+      # ----------------------------------------------------------
+      # Ad-hoc signing makes the generated bundle internally
+      # consistent. Proper public distribution will eventually
+      # need Developer ID signing + Apple notarization.
+      # ----------------------------------------------------------
+
+      - name: Ad-hoc sign macOS application
+        shell: bash
+        run: |
+
+          APP_ROOT="$GITHUB_WORKSPACE/dist/STARFiShCrimsonGUI/bin/macos/CRIMSON Boundary Condition Toolbox.app"
+
+          codesign \
+            --force \
+            --deep \
+            --sign - \
+            "$APP_ROOT"
+
+
+      - name: Verify macOS bundle
+        shell: bash
+        run: |
+
+          APP_ROOT="$GITHUB_WORKSPACE/dist/STARFiShCrimsonGUI/bin/macos/CRIMSON Boundary Condition Toolbox.app"
+
+          file \
+            "$APP_ROOT/Contents/MacOS/CRIMSONBCT"
+
+          otool -L \
+            "$APP_ROOT/Contents/MacOS/CRIMSONBCT"
+
+          codesign \
+            --verify \
+            --deep \
+            --strict \
+            "$APP_ROOT"
+
+
+      # ----------------------------------------------------------
+      # ditto preserves the macOS bundle structure and executable
+      # permissions better than uploading all app files directly.
+      # ----------------------------------------------------------
+
+      - name: Create macOS ZIP
+        shell: bash
+        run: |
+
+          cd "$GITHUB_WORKSPACE/dist/STARFiShCrimsonGUI/bin/macos"
+
+          ditto \
+            -c \
+            -k \
+            --sequesterRsrc \
+            --keepParent \
+            "CRIMSON Boundary Condition Toolbox.app" \
+            "$GITHUB_WORKSPACE/CRIMSONBCT-macOS-arm64.zip"
+
+
+      - name: Upload macOS ARM64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CRIMSONBCT-macOS-arm64
+          path: CRIMSONBCT-macOS-arm64.zip
+          if-no-files-found: error
+          retention-days: 14
+
+
+
+  # ============================================================
+  # LINUX x86_64
+  #
+  # Your existing source tree already has a successful Qt6 Linux
+  # build, but the apt Qt5/Qwt build is much simpler and requires
+  # no manually compiled Qwt.
+  #
+  # This job currently produces a build artifact, not a completely
+  # self-contained AppImage.
+  # ============================================================
+
+  linux:
+    name: Linux x86_64
+    runs-on: ubuntu-22.04
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      - name: Install Linux dependencies
+        shell: bash
+        run: |
+
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            pkg-config \
+            libboost-dev \
+            qtbase5-dev \
+            qtbase5-dev-tools \
+            libqt5svg5-dev \
+            libqt5opengl5-dev \
+            libqwt-qt5-dev
+
+
+      - name: Configure Linux
+        shell: bash
+        run: |
+
+          cmake \
+            -S "$GITHUB_WORKSPACE/STARFiShCrimsonGUI/NetlistEditor" \
+            -B "$GITHUB_WORKSPACE/STARFiShCrimsonGUI/NetlistEditor/build-ci" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DNETLISTEDITOR_USE_QT6=OFF
+
+
+      - name: Build Linux
+        shell: bash
+        run: |
+
+          cmake \
+            --build "$GITHUB_WORKSPACE/STARFiShCrimsonGUI/NetlistEditor/build-ci" \
+            --parallel
+
+
+      - name: Stage Linux binary
+        shell: bash
+        run: |
+
+          PACKAGE="$GITHUB_WORKSPACE/dist/STARFiShCrimsonGUI/bin/linux"
+
+          mkdir -p "$PACKAGE"
+
+          SOURCE_BINARY="$GITHUB_WORKSPACE/STARFiShCrimsonGUI/NetlistEditor/build-ci/bin/CRIMSONBCT"
+
+          if [ ! -f "$SOURCE_BINARY" ]; then
+            echo "CRIMSONBCT was not produced."
+            exit 1
+          fi
+
+          cp \
+            "$SOURCE_BINARY" \
+            "$PACKAGE/CRIMSONBCT"
+
+          chmod +x \
+            "$PACKAGE/CRIMSONBCT"
+
+
+      - name: Show Linux dependencies
+        shell: bash
+        run: |
+
+          ldd \
+            "$GITHUB_WORKSPACE/dist/STARFiShCrimsonGUI/bin/linux/CRIMSONBCT"
+
+
+      - name: Create Linux archive
+        shell: bash
+        run: |
+
+          cd "$GITHUB_WORKSPACE/dist"
+
+          tar \
+            -czf "$GITHUB_WORKSPACE/CRIMSONBCT-Linux-x86_64.tar.gz" \
+            STARFiShCrimsonGUI
+
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CRIMSONBCT-Linux-x86_64
+          path: CRIMSONBCT-Linux-x86_64.tar.gz
+          if-no-files-found: error
+          retention-days: 14
