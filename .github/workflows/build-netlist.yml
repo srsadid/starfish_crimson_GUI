@@ -22,6 +22,7 @@ jobs:
 
     env:
       VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\.vcpkg-cache
+      VCPKG_BUILD_TYPE: release
 
     steps:
 

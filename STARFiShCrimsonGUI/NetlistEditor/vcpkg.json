@@ -15,6 +15,14 @@
     },
     "qtsvg",
     "qwt",
-    "boost-headers"
+    "boost-graph",
+    "boost-assign",
+    "boost-exception",
+    "boost-lexical-cast",
+    "boost-foreach",
+    "boost-property-tree",
+    "boost-bimap",
+    "boost-type-traits",
+    "boost-concept-check"
   ]
 }
