@@ -463,7 +463,7 @@ jobs:
 
           APP_BINARY="$APP_ROOT/Contents/MacOS/CRIMSONBCT"
 
-          QWT_DEP="$(otool -L "$APP_BINARY" | awk '/libqwt/{print $1; exit}')"
+          QWT_DEP="$(otool -L "$APP_BINARY" | awk '/qwt/{print $1; exit}')"
 
           echo "Qwt dependency:"
           echo "$QWT_DEP"
