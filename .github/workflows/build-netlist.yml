@@ -348,7 +348,8 @@ jobs:
             -DQwt_INCLUDE_DIR="$QWT_INCLUDE" \
             -DQwt_LIBRARY="$QWT_LIBRARY" \
             -DBOOST_ROOT="$BOOST" \
-            -DCMAKE_PREFIX_PATH="$QTBASE;$QTSVG"
+            -DCMAKE_PREFIX_PATH="$QTBASE;$QTSVG" \
+            -DQt6Svg_DIR="$QTSVG/lib/cmake/Qt6Svg"
 
 
       # ----------------------------------------------------------
