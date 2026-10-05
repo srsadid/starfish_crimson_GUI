@@ -296,7 +296,6 @@ jobs:
 
           brew install \
             cmake \
-            qt \
             qwt \
             boost
 
@@ -319,9 +318,24 @@ jobs:
         shell: bash
         run: |
 
-          QT_ROOT="$(brew --prefix qt)"
-          QWT_ROOT="$(brew --prefix qwt)"
-          BOOST_ROOT="$(brew --prefix boost)"
+          QTBASE="$(brew --prefix qtbase)"
+          QTSVG="$(brew --prefix qtsvg)"
+          QWT="$(brew --prefix qwt)"
+          BOOST="$(brew --prefix boost)"
+
+          QWT_INCLUDE="$QWT/lib/qwt.framework/Headers"
+          QWT_LIBRARY="$QWT/lib/qwt.framework/qwt"
+
+          echo "Qt base: $QTBASE"
+          echo "Qt SVG: $QTSVG"
+          echo "Qwt prefix: $QWT"
+          echo "Qwt headers: $QWT_INCLUDE"
+          echo "Qwt library: $QWT_LIBRARY"
+          echo "Boost: $BOOST"
+
+          echo "Checking Qwt..."
+          test -f "$QWT_INCLUDE/qwt_plot.h"
+          test -f "$QWT_LIBRARY"
 
           cmake \
             -S "$GITHUB_WORKSPACE/STARFiShCrimsonGUI/NetlistEditor" \
@@ -329,9 +343,10 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DNETLISTEDITOR_USE_QT6=ON \
             -DINCLUDE_REQUIRED_LIBRARIES_INTO_BUNDLE=OFF \
-            -DQwt_ROOT="$QWT_ROOT" \
-            -DBOOST_ROOT="$BOOST_ROOT" \
-            -DCMAKE_PREFIX_PATH="$QT_ROOT;$QWT_ROOT"
+            -DQwt_INCLUDE_DIR="$QWT_INCLUDE" \
+            -DQwt_LIBRARY="$QWT_LIBRARY" \
+            -DBOOST_ROOT="$BOOST" \
+            -DCMAKE_PREFIX_PATH="$QTBASE;$QTSVG"
 
 
       # ----------------------------------------------------------
