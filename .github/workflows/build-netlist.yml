@@ -480,7 +480,7 @@ jobs:
 
           APP_ROOT="$GITHUB_WORKSPACE/dist/STARFiShCrimsonGUI/bin/macos/CRIMSON Boundary Condition Toolbox.app"
 
-          MACDEPLOYQT="$(brew --prefix qt)/bin/macdeployqt"
+          MACDEPLOYQT="$(brew --prefix qtbase)/bin/macdeployqt"
 
           "$MACDEPLOYQT" \
             "$APP_ROOT" \
