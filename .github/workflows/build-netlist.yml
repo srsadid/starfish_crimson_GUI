@@ -143,40 +143,13 @@ jobs:
             Select-Object -First 1
 
           Copy-Item `
-            $exe.FullName `
-            "$package\CRIMSONBCT.exe"
+            "$($exe.DirectoryName)\*" `
+            "$package\" `
+            -Recurse `
+            -Force
 
 
-      # ----------------------------------------------------------
-      # Qwt is not deployed by windeployqt automatically.
-      # Copy it first so windeployqt can scan it for Qt dependencies.
-      # ----------------------------------------------------------
 
-      - name: Copy Qwt DLL
-        shell: pwsh
-        run: |
-
-          $package = `
-            "$env:GITHUB_WORKSPACE\dist\STARFiShCrimsonGUI\bin\windows"
-
-          $qwt = Get-ChildItem `
-            "$env:GITHUB_WORKSPACE\STARFiShCrimsonGUI\NetlistEditor\build-ci\vcpkg_installed\x64-windows\bin" `
-            -Filter "*qwt*.dll" `
-            -ErrorAction SilentlyContinue
-
-          if (-not $qwt) {
-            throw "Qwt runtime DLL was not found."
-          }
-
-          foreach ($dll in $qwt) {
-
-            Write-Host "Copying $($dll.Name)"
-
-            Copy-Item `
-              $dll.FullName `
-              "$package\" `
-              -Force
-          }
 
 
       # ----------------------------------------------------------
@@ -209,8 +182,7 @@ jobs:
             --compiler-runtime `
             --no-translations `
             --dir "$package" `
-            "$package\CRIMSONBCT.exe" `
-            "$package\qwt.dll"
+            "$package\CRIMSONBCT.exe"
 
 
 
