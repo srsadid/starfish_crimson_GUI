@@ -463,6 +463,7 @@ jobs:
 
           "$MACDEPLOYQT" \
             "$APP_ROOT" \
+            -executable="$APP_ROOT/Contents/Frameworks/qwt" \
             -always-overwrite
 
 
