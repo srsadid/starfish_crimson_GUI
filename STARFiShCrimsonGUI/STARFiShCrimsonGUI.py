@@ -167,8 +167,13 @@ class STARFiShCrimsonGUIWidget(ScriptedLoadableModuleWidget):
             )
             return
 
+        # Strip Slicer's environment variables to prevent plugin loading conflicts
+        env = os.environ.copy()
+        for k in ['QT_PLUGIN_PATH', 'QT_QPA_PLATFORM_PLUGIN_PATH', 'LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH', 'DYLD_FRAMEWORK_PATH']:
+            env.pop(k, None)
+
         try:
-            subprocess.Popen([binary_path])
+            subprocess.Popen([binary_path], env=env)
         except Exception as exc:
             qt.QMessageBox.critical(
                 slicer.util.mainWindow(),
