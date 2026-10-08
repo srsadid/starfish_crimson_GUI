@@ -17,6 +17,17 @@ This repository decouples the visual editor and data visualization components fr
 3. Under **Additional module paths**, click **Add** and select the `STARFiShCrimsonGUI` folder from this repository.
 4. Restart Slicer. The module will now be available under the **STARFiSh-CRIMSON** category in the modules dropdown.
 
+### macOS Installation Notes
+If you downloaded this repository as a `.zip` file instead of using `git clone`, macOS will strip the executable permissions from the bundled binaries, which will cause a `[Errno 13] Permission denied` error when trying to launch the Netlist Editor. 
+
+To fix this:
+1. Open your Mac's **Terminal**.
+2. Run the following command (replace `/path/to/repo` with the actual path to your extracted folder):
+   ```bash
+   chmod +x "/path/to/repo/STARFiShCrimsonGUI/bin/macos/CRIMSON Boundary Condition Toolbox.app/Contents/MacOS/CRIMSONBCT"
+   ```
+3. Because this is a third-party application, macOS Gatekeeper may block it the first time it launches. Go to **System Settings** > **Privacy & Security**, scroll down, and click **Open Anyway** next to the CRIMSON app warning to allow it to run.
+
 ## Requirements
 
 **1. SlicerVMTK (Required)**
